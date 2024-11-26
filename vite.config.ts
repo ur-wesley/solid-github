@@ -1,23 +1,27 @@
 import { defineConfig } from "vite";
 import solid from "vite-plugin-solid";
 import UnoCSS from 'unocss/vite'
-import { presetIcons, presetUno } from 'unocss'
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-// @ts-expect-error process is a nodejs global
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({
   plugins: [
-    UnoCSS({
-      presets: [
-        presetUno(),
-        presetIcons(),
-      ]
-    }),
+    UnoCSS("unocss.config.ts"),
     solid(),
   ],
 
+
+  resolve: {
+    alias: {
+      "@": resolve(__dirname, "./src")
+    }
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //

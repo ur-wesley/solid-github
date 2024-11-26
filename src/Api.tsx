@@ -1,79 +1,63 @@
 import { createContext, useContext, JSX, createEffect } from "solid-js";
 import { createStore } from "solid-js/store";
-import { $Fetch, ofetch } from "ofetch";
-import { writeConfig } from "./tauriHelper.ts";
-
-type Issue = {
- id: number;
- title: string;
- body: string;
- state: string;
-};
-
-type Repo = {
- id: number;
- name: string;
- full_name: string;
-};
-
-type ApiStore = {
- issues: Issue[];
- token: string | null;
- repositories: Repo[];
- selectedRepo: { owner: string; repo: string } | null;
- owner: Owner | null;
-};
-
-type Owner = {
- login: string;
- avatar_url: string;
-};
+import { $Fetch, FetchError, ofetch } from "ofetch";
+import AppStore from "./Store.ts";
 
 type ApiActions = {
- setToken: (token: string) => void;
  fetchOwner: () => Promise<Owner | null>;
  fetchRepos: () => Promise<Repo[]>;
- selectRepo: (owner: string, repo: string) => void;
- fetchIssues: () => Promise<void>;
+ selectRepo: (repoId: number) => void;
+ fetchIssues: () => Promise<Issue[]>;
+ selectIssue: (issueId: number) => void;
  createIssue: (issue: Partial<Issue>) => Promise<Issue>;
  updateIssue: (issueNumber: number, data: Partial<Issue>) => Promise<Issue>;
  deleteIssue: (issueNumber: number) => Promise<void>;
+ favoriteRepo: (repoId: number) => Promise<void>;
 };
 
 const ApiContext = createContext<readonly [ApiStore, ApiActions] | null>(null);
 
-export const ApiProvider = (props: { children: JSX.Element }) => {
+const ApiProvider = (props: { children: JSX.Element; token: string }) => {
+ let api: $Fetch;
+ const appStore = AppStore.getInstance();
+
  const [store, setStore] = createStore<ApiStore>({
   issues: [],
-  token: null,
+  selectedIssue: null,
   repositories: [],
   selectedRepo: null,
   owner: null,
+  token: props.token,
  });
 
- let api: $Fetch = ofetch.create({});
+ async function handleUnauthorized(error: FetchError) {
+  if (error.status === 401) {
+   await appStore.set("token", null);
+  }
+  return null;
+ }
 
- createEffect(() => {
+ createEffect(async () => {
+  if (!store.token) return;
+  console.log("Creating API instance with token:", store.token);
   api = ofetch.create({
    headers: {
-    Authorization: store.token ? `Bearer ${store.token}` : "",
+    Authorization: `Bearer ${store.token}`,
     "X-GitHub-Api-Version": "2022-11-28",
    },
   });
  });
 
  const actions: ApiActions = {
-  setToken: (token) => {
-   setStore("token", token);
-   writeConfig({ token });
-  },
-
   fetchOwner: async () => {
-   if (!store.token) throw new Error("GitHub token is not set.");
+   if (!store.token || !api) throw new Error("GitHub token is not set.");
    try {
-    const response = await api<Owner>("https://api.github.com/user");
-    setStore("owner", response);
-    return response;
+    return await api<Owner>("https://api.github.com/user")
+     .then((response) => {
+      setStore("owner", response);
+      return response;
+     })
+     .catch(handleUnauthorized);
    } catch (error) {
     console.error("Error fetching owner information:", error);
     return null;
@@ -81,9 +65,26 @@ export const ApiProvider = (props: { children: JSX.Element }) => {
   },
 
   fetchRepos: async () => {
-   if (!store.token) throw new Error("GitHub token is not set.");
+   if (!store.token || !api) throw new Error("GitHub token is not set.");
    try {
-    const response = await api<Repo[]>("https://api.github.com/user/repos");
+    const response = await api<Repo[]>("https://api.github.com/user/repos", {
+     query: {
+      sort: "updated",
+      per_page: "100",
+     },
+    });
+
+    const appStore = AppStore.getInstance();
+    const favorites = await appStore.get<number[]>("favorites");
+    for (const repo of response) {
+     repo.isFavorite = favorites?.includes(repo.id) ?? false;
+    }
+    response.sort((a, b) => {
+     if (a.isFavorite && !b.isFavorite) return -1;
+     if (!a.isFavorite && b.isFavorite) return 1;
+     return 0;
+    });
+
     setStore("repositories", response);
     return response;
    } catch (error) {
@@ -92,31 +93,43 @@ export const ApiProvider = (props: { children: JSX.Element }) => {
    }
   },
 
-  selectRepo: (owner, repo) => {
-   setStore("selectedRepo", { owner, repo });
+  selectRepo: (id: number) => {
+   setStore(
+    "selectedRepo",
+    store.repositories.find((r) => r.id === id) ?? null
+   );
+   console.log("Selected repo:", store.selectedRepo);
   },
 
   fetchIssues: async () => {
-   if (!store.token) throw new Error("GitHub token is not set.");
+   if (!store.token || !api) throw new Error("GitHub token is not set.");
    if (!store.selectedRepo)
     throw new Error("No repository selected. Please select a repository.");
-   const { owner, repo } = store.selectedRepo;
+   const [owner, repo] = store.selectedRepo.full_name.split("/");
    try {
     const response = await api<Issue[]>(
      `https://api.github.com/repos/${owner}/${repo}/issues`
     );
     setStore("issues", response);
+    return response;
    } catch (error) {
     console.error("Error fetching issues:", error);
-    throw error;
+    return [];
    }
   },
 
+  selectIssue: (issueId) => {
+   setStore(
+    "selectedIssue",
+    store.issues.find((issue) => issue.id === issueId) ?? null
+   );
+  },
+
   createIssue: async (issue) => {
-   if (!store.token) throw new Error("GitHub token is not set.");
+   if (!store.token || !api) throw new Error("GitHub token is not set.");
    if (!store.selectedRepo)
     throw new Error("No repository selected. Please select a repository.");
-   const { owner, repo } = store.selectedRepo;
+   const [owner, repo] = store.selectedRepo.full_name.split("/");
    try {
     const response = await api<Issue>(
      `https://api.github.com/repos/${owner}/${repo}/issues`,
@@ -125,7 +138,7 @@ export const ApiProvider = (props: { children: JSX.Element }) => {
       body: issue,
      }
     );
-    setStore("issues", [...store.issues, response]);
+    setStore("issues", [response, ...store.issues]);
     return response;
    } catch (error) {
     console.error("Error creating issue:", error);
@@ -134,10 +147,10 @@ export const ApiProvider = (props: { children: JSX.Element }) => {
   },
 
   updateIssue: async (issueNumber, data) => {
-   if (!store.token) throw new Error("GitHub token is not set.");
+   if (!store.token || !api) throw new Error("GitHub token is not set.");
    if (!store.selectedRepo)
     throw new Error("No repository selected. Please select a repository.");
-   const { owner, repo } = store.selectedRepo;
+   const [owner, repo] = store.selectedRepo.full_name.split("/");
    try {
     const response = await api<Issue>(
      `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}`,
@@ -158,10 +171,10 @@ export const ApiProvider = (props: { children: JSX.Element }) => {
   },
 
   deleteIssue: async (issueNumber) => {
-   if (!store.token) throw new Error("GitHub token is not set.");
+   if (!store.token || !api) throw new Error("GitHub token is not set.");
    if (!store.selectedRepo)
     throw new Error("No repository selected. Please select a repository.");
-   const { owner, repo } = store.selectedRepo;
+   const [owner, repo] = store.selectedRepo.full_name.split("/");
    try {
     await api(
      `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}`,
@@ -178,6 +191,19 @@ export const ApiProvider = (props: { children: JSX.Element }) => {
     throw error;
    }
   },
+
+  favoriteRepo: async (repoId) => {
+   const store = AppStore.getInstance();
+   const favorites = await store.get<number[]>("favorites");
+   if (favorites?.includes(repoId)) {
+    await store.set(
+     "favorites",
+     favorites.filter((id) => id !== repoId)
+    );
+   } else {
+    await store.set("favorites", [...(favorites ?? []), repoId]);
+   }
+  },
  };
 
  return (
@@ -188,3 +214,4 @@ export const ApiProvider = (props: { children: JSX.Element }) => {
 };
 
 export const useApi = () => useContext(ApiContext)!;
+export default ApiProvider;

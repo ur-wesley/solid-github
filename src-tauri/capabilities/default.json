@@ -39,6 +39,8 @@
           "path": "$APPLOCALDATA/*"
         }
       ]
-    }
+    },
+    "deep-link:default",
+    "store:default"
   ]
 }
