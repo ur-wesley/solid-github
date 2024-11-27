@@ -1,3 +1,4 @@
+import { text } from "stream/consumers";
 import {
   defineConfig,
   presetUno,
@@ -22,6 +23,7 @@ export default defineConfig({
   transformers: [transformerVariantGroup(), transformerDirectives()],
   theme: {
     colors: {
+      text: "hsl(var(--text))",
       border: "hsl(var(--border))",
       input: "hsl(var(--input))",
       ring: "hsl(var(--ring))",

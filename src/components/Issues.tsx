@@ -1,6 +1,6 @@
 import { useApi } from "@/Api.tsx";
 import { createQuery } from "@tanstack/solid-query";
-import { createEffect, createSignal, For, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
 
 export default function Issues() {
  const [$store, { fetchIssues, createIssue, selectIssue }] = useApi();
@@ -9,14 +9,12 @@ export default function Issues() {
  const issueQuery = createQuery(() => ({
   queryKey: ["issues", $store.selectedRepo?.id],
   queryFn: fetchIssues,
+  refetchInterval: 10000,
+  refetchOnWindowFocus: true,
  }));
 
- createEffect(() => {
-  console.log("issueQuery", $store.selectedRepo?.id);
- });
-
  return (
-  <>
+  <div class="h-full flex flex-col bg-red">
    <div class="w-full flex gap-2 items-center">
     <Show
      when={showTextfield()}
@@ -45,7 +43,7 @@ export default function Issues() {
     </Show>
    </div>
    <Show when={$store.selectedRepo && issueQuery.isSuccess}>
-    <ul class="p-2 h-full flex flex-col gap-2">
+    <ul class="p-2 h-full flex flex-col gap-2 overflow-auto">
      <For
       each={$store.issues}
       fallback={
@@ -64,6 +62,6 @@ export default function Issues() {
      </For>
     </ul>
    </Show>
-  </>
+  </div>
  );
 }

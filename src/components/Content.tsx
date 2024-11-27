@@ -7,10 +7,16 @@ export default function Content() {
  const [$store] = useApi();
 
  return (
-  <section id="content" class="bg-background h-full">
+  <section
+   id="content"
+   class="bg-background h-full w-full"
+   style={{ "grid-area": "content" }}
+  >
    <Switch>
     <Match when={!$store.selectedRepo}>
-     <span class="h-full grid place-content-center">no repo selected</span>
+     <span class="h-full grid place-content-center">
+      No repository selected
+     </span>
     </Match>
     <Match when={!!$store.selectedRepo && !$store.selectedIssue}>
      <ListPanel>
@@ -29,7 +35,10 @@ export default function Content() {
 
 function ListPanel(props: { children: JSXElement }) {
  return (
-  <div id="list-panel" class="bg-background text-foreground h-full w-full">
+  <div
+   id="list-panel"
+   class="bg-background text-foreground h-full bg-green w-full overflow-auto"
+  >
    {props.children}
   </div>
  );

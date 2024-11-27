@@ -10,13 +10,16 @@ import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import { onOpenUrl } from "@tauri-apps/plugin-deep-link";
 import { invoke } from "@tauri-apps/api/core";
 import ApiProvider from "./Api.tsx";
-import Dashboard from "./Dashboard.tsx";
 import AppStore from "./Store.ts";
 
 import "uno.css";
 import "virtual:uno.css";
 import "./App.css";
 import { Login } from "./Auth.ts";
+import Header from "./components/Header.tsx";
+import Content from "./components/Content.tsx";
+import Sidebar from "./components/Sidebar.tsx";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 const queryClient = new QueryClient();
 
@@ -94,7 +97,7 @@ function App() {
    >
     <ApiProvider token={accessToken()!}>
      <QueryClientProvider client={queryClient}>
-      <Dashboard />
+      <Layout />
      </QueryClientProvider>
     </ApiProvider>
    </Show>
@@ -113,6 +116,38 @@ function LoginButton(props: { url: string }) {
     <i class="i-mdi-github p-4 font-white" />
     <span>Login with GitHub</span>
    </a>
+  </div>
+ );
+}
+
+function Layout() {
+ const [isExpanded, setIsExpanded] = createSignal(true);
+
+ onMount(async () => {
+  const unlisten = await getCurrentWindow().onResized(({ payload: size }) => {
+   setIsExpanded(size.width > 1200);
+  });
+  return () => {
+   unlisten();
+  };
+ });
+
+ {
+  /* <div id="layout" > */
+ }
+ return (
+  <div
+   class=""
+   style={{
+    display: "grid",
+    "grid-template-areas": '"header header" "sidebar content"',
+    "grid-template-columns": "auto 1fr",
+    "grid-template-rows": "auto 1fr",
+   }}
+  >
+   <Header onExpand={setIsExpanded} expanded={isExpanded()} />
+   <Sidebar expanded={isExpanded()} />
+   <Content />
   </div>
  );
 }

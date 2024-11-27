@@ -4,7 +4,10 @@ import { createQuery } from "@tanstack/solid-query";
 import { Avatar } from "@ark-ui/solid/avatar";
 import { Logout } from "../Auth.ts";
 
-export default function Header() {
+export default function Header(props: {
+ onExpand: (value: boolean) => void;
+ expanded: boolean;
+}) {
  const [$store, { fetchOwner, favoriteRepo }] = useApi();
 
  const ownerQuery = createQuery(() => ({
@@ -21,8 +24,14 @@ export default function Header() {
  }
 
  return (
-  <header class="flex sticky top-0 gap-2 p-2 w-full items-center justify-between bg-card">
-   <span>solid-github</span>
+  <header
+   class="flex sticky top-0 gap-2 p-2 w-full items-center justify-between bg-card"
+   style={{ "grid-area": "header" }}
+  >
+   <div class="" onclick={() => props.onExpand(!props.expanded)}>
+    <i class="i-mdi-menu p-2" aria-hidden="true" />
+    <span>solid-github</span>
+   </div>
    <Show when={$store.selectedRepo?.id}>
     <div class="flex gap-2 items-center">
      <a

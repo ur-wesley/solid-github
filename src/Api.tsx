@@ -94,11 +94,8 @@ const ApiProvider = (props: { children: JSX.Element; token: string }) => {
   },
 
   selectRepo: (id: number) => {
-   setStore(
-    "selectedRepo",
-    store.repositories.find((r) => r.id === id) ?? null
-   );
-   console.log("Selected repo:", store.selectedRepo);
+   setStore("selectedRepo", store.repositories[id]);
+   return;
   },
 
   fetchIssues: async () => {
